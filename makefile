@@ -2,7 +2,7 @@
 # these commands. It will override any "Makefile" in the directory.
 
 .PHONY: start debug config logs log-one start-debug stop clean test test-list \
-	test-one restart-one help
+	test-one restart-one help update-node test-fast
 
 # $SUDO is an optional shell variable which can be set to "sudo" if needed
 # (for example, on an ec2 instance)
@@ -22,14 +22,19 @@ help:
 	@echo "log-one one=<>         --- Run 'docker-compose logs -f <one>'."
 	@echo "clean                  --- Remove all docker files and history."
 	@echo "test                   --- Run 'npm run headless'."
+	@echo "test-fast              --- Run 'npm run headless' (except two slow tests)."
 	@echo "test-list              --- Show available polis tests"
-	@echo "test-one one=<test>    --- 'cypress run --spec <polis-path>/<one> \#headless'
+	@echo "test-one one=<test>    --- 'cypress run --spec <polis-path>/<one> \#headless'"
+	@echo "update-node one=<dir> node=<version>"
+	@echo "                       --- Start container with node for updating package-lock.json"
+	@echo "                           (Note: omit 'alpine' from node version to enable bash interaction.)"
 
 echo-one:
 	@echo "one: ${one}"
 
 config:
-	/bin/cp -rf config server
+	@echo "nothing to do."
+	#/bin/cp -rf config server
 
 restart:
 	make stop
@@ -90,15 +95,33 @@ clean:
 	@echo 'echo done'
 
 test:
+	- mv e2e/integration.spec.js_disabled e2e/cypress/integration/polis/client-participation/integration.spec.js
+	- mv e2e/embeds.spec.js_disabled e2e/cypress/integration/polis/client-participation/embeds.spec.js
 	# change to 'npm run test' after merge with master
 	@echo "--- Running 'npm run headless'"
 	cd e2e; node_modules/.bin/cypress  run --spec 'cypress/integration/polis/**'  --headless
 
+test-fast:
+	# change to 'npm run test' after merge with master
+	@echo "--- Running 'npm run headless'"
+	- mv e2e/cypress/integration/polis/client-participation/integration.spec.js e2e/integration.spec.js_disabled
+	- mv e2e/cypress/integration/polis/client-participation/embeds.spec.js e2e/embeds.spec.js_disabled
+	cd e2e; node_modules/.bin/cypress run --headless --spec 'cypress/integration/polis/**' --config video=false 
+	- mv e2e/integration.spec.js_disabled e2e/cypress/integration/polis/client-participation/integration.spec.js
+	- mv e2e/embeds.spec.js_disabled e2e/cypress/integration/polis/client-participation/embeds.spec.js
+
 test-list:
 	@echo "available polis e2e tests:"
+	- mv e2e/integration.spec.js_disabled e2e/cypress/integration/polis/client-participation/integration.spec.js
+	- mv e2e/embeds.spec.js_disabled e2e/cypress/integration/polis/client-participation/embeds.spec.js
 	cd e2e/cypress/integration/polis; tree
 
 test-one:
 	@echo "--- running cypress e2e test: ${one}"
 	cd e2e; ./node_modules/.bin/cypress run --headless --browser=chrome --spec './cypress/integration/polis/${one}'
-	
+
+update-node:
+	@echo "--- Running node in new container: $(shell pwd)/${one} with node:${node}"
+	docker run --rm -v "$(shell pwd)/${one}":/data -w /data -it node:"${node}" bash
+
+
